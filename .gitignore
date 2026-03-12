@@ -4,3 +4,4 @@
 /.direnv/
 /.projectile-cache.eld
 /.envrc.local
+/claude-vm.qcow2
