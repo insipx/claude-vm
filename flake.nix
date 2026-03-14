@@ -51,7 +51,7 @@
                     host = {
                       pkgs = hostPkgs;
                     };
-                    memorySize = 4096;
+                    memorySize = 32768;
                     sharedDirectories = {
                       config = {
                         securityModel = "none";
