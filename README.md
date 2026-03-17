@@ -7,10 +7,10 @@ directory is mounted into the VM at `/workspace`.
 ## Usage
 
 ```bash
-nix run github:solomon-b/claude-vm
-nix run github:solomon-b/claude-vm -- --dangerously-skip-permissions
-nix run github:solomon-b/claude-vm -- --model sonnet
-nix run github:solomon-b/claude-vm -- -p "fix the tests"
+nix run github:insipx/claude-vm
+nix run github:insipx/claude-vm -- --dangerously-skip-permissions
+nix run github:insipx/claude-vm -- --model sonnet
+nix run github:insipx/claude-vm -- -p "fix the tests"
 ```
 
 Or clone and run locally:
