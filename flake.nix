@@ -4,13 +4,27 @@
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
     claude-code-nix.url = "github:sadjow/claude-code-nix";
-  };
+    jujutsu = {
+      url = "github:jj-vcs/jj/v0.38.0";
+      # url = "github:jj-vcs/jj";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.rust-overlay.follows = "rust-overlay";
+    };
+    rust-overlay = {
+      url = "github:oxalica/rust-overlay";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
 
+    jupiter-secrets = {
+      url = "github:insipx/jupiter-secrets";
+    };
+  };
   outputs =
-    {
+    inputs@{
       self,
       nixpkgs,
       claude-code-nix,
+      ...
     }:
     let
       supportedSystems = [
@@ -28,22 +42,29 @@
         hostSystem:
         let
           guestSystem = guestSystemFor hostSystem;
-          hostPkgs = import nixpkgs { system = hostSystem; };
+          hostPkgs = import nixpkgs {
+            system = hostSystem;
+            overlays = [
+              inputs.jujutsu.overlays.default
+              inputs.jupiter-secrets.overlays.default
+            ];
+          };
         in
         {
           inherit hostPkgs;
           nixosSystem = nixpkgs.lib.nixosSystem {
             system = guestSystem;
             modules = [
+              inputs.jupiter-secrets.nixosModules.default
               (
                 {
                   pkgs,
                   modulesPath,
+                  config,
                   ...
                 }:
                 {
                   imports = [ "${modulesPath}/virtualisation/qemu-vm.nix" ];
-
                   # ---------- host / guest plumbing ----------
                   virtualisation = {
                     cores = 4;
@@ -51,7 +72,8 @@
                     host = {
                       pkgs = hostPkgs;
                     };
-                    memorySize = 32768;
+                    memorySize = 16384;
+                    diskSize = 65536;
                     sharedDirectories = {
                       config = {
                         securityModel = "none";
@@ -88,6 +110,8 @@
                     git
                     curl
                     vim
+                    jujutsu
+                    gh
                   ];
 
                   # ---------- nix flakes in guest ----------
