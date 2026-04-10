@@ -119,6 +119,15 @@
                     nix-direnv.enable = true;
                     enableBashIntegration = true;
                   };
+                  programs.git = {
+                    enable = true;
+                    config = {
+                      user.name = "Andrew Plaza";
+                      user.email = "github@andrewplaza.dev";
+                      url."https://github.com/".insteadOf = "git@github.com:";
+                      credential."https://github.com".helper = "!f() { echo \"protocol=https\nhost=github.com\nusername=x-access-token\npassword=\$GH_TOKEN\"; }; f";
+                    };
+                  };
                   # ---------- nix flakes in guest ----------
                   nix.settings = {
                     experimental-features = [
@@ -154,6 +163,12 @@
                       done < /mnt/claude-vm-config/claude-args
                     fi
 
+                    # Export GitHub token for gh CLI and git credential helper
+                    if [ -f /mnt/claude-vm-config/gh-token ]; then
+                      export GH_TOKEN=$(cat /mnt/claude-vm-config/gh-token)
+                      export GITHUB_TOKEN="$GH_TOKEN"
+                    fi
+
                     cd /workspace 2>/dev/null || true
                     claude "''${args[@]}"
                     systemctl poweroff -f
@@ -185,6 +200,16 @@
               printf '%s\n' "$@" > "$CONFIG_DIR/claude-args"
             else
               touch "$CONFIG_DIR/claude-args"
+            fi
+
+            # Resolve GitHub token: explicit env var > gh CLI > skip
+            GH_TOKEN="''${GH_TOKEN:-''${GITHUB_TOKEN:-}}"
+            if [ -z "$GH_TOKEN" ] && command -v gh &>/dev/null; then
+              GH_TOKEN=$(gh auth token 2>/dev/null) || true
+            fi
+            if [ -n "$GH_TOKEN" ]; then
+              printf '%s' "$GH_TOKEN" > "$CONFIG_DIR/gh-token"
+              chmod 600 "$CONFIG_DIR/gh-token"
             fi
 
             export CLAUDE_VM_CONFIG_DIR="$CONFIG_DIR"
