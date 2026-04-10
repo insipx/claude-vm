@@ -113,7 +113,11 @@
                     jujutsu
                     gh
                   ];
-
+                  programs.direnv = {
+                    enable = true;
+                    nix-direnv.enable = true;
+                    enableBashIntegration = true;
+                  };
                   # ---------- nix flakes in guest ----------
                   nix.settings.experimental-features = [
                     "nix-command"
