@@ -119,10 +119,20 @@
                     enableBashIntegration = true;
                   };
                   # ---------- nix flakes in guest ----------
-                  nix.settings.experimental-features = [
-                    "nix-command"
-                    "flakes"
-                  ];
+                  nix.settings = {
+                    experimental-features = [
+                      "nix-command"
+                      "flakes"
+                    ];
+                    substituters = [
+                      "https://xmtp.cachix.org"
+                      "https://nix-community.cachix.org"
+                    ];
+                    trusted-public-keys = [
+                      "xmtp.cachix.org-1:nFPFrqLQ9kjYQKiWL7gKq6llcNEeaV4iI+Ka1F+Tmq0="
+                      "nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs="
+                    ];
+                  };
                   environment.variables.IS_SANDBOX = 1;
                   # ---------- login shell launches claude ----------
                   programs.bash.interactiveShellInit = ''
