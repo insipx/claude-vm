@@ -75,30 +75,41 @@
                     memorySize = 16384;
                     diskSize = 65536;
                     writableStoreUseTmpfs = false;
-                    sharedDirectories = {
-                      config = {
-                        securityModel = "none";
-                        source = ''"$CLAUDE_VM_CONFIG_DIR"'';
-                        target = "/mnt/claude-vm-config";
-                      };
-                      workspace = {
-                        securityModel = "none";
-                        source = ''"$WORKSPACE_DIR"'';
-                        target = "/workspace";
-                      };
-                    };
+                    qemu.options = [
+                      "-object"
+                      "memory-backend-memfd,id=mem,size=16384M,share=on"
+                      "-machine"
+                      "memory-backend=mem"
+                      # workspace
+                      "-chardev"
+                      ''socket,id=char-workspace,path="$VIRTIOFSD_SOCK_DIR"/workspace.sock''
+                      "-device"
+                      "vhost-user-fs-pci,chardev=char-workspace,tag=workspace"
+                      # config
+                      "-chardev"
+                      ''socket,id=char-config,path="$VIRTIOFSD_SOCK_DIR"/config.sock''
+                      "-device"
+                      "vhost-user-fs-pci,chardev=char-config,tag=config"
+                    ];
                   };
 
                   # ---------- boot / console ----------
+                  # Replace the boot block:
                   boot = {
-                    initrd.kernelModules = [
-                      "9p"
-                      "9pnet_virtio"
-                    ];
                     kernelParams = [ "console=ttyS0" ];
                     loader.grub.enable = false;
+                    initrd.availableKernelModules = [ "virtiofs" ];
+                  };
+                  # Add guest-side mounts at the module level:
+                  fileSystems."/workspace" = {
+                    device = "workspace";
+                    fsType = "virtiofs";
                   };
 
+                  fileSystems."/mnt/claude-vm-config" = {
+                    device = "config";
+                    fsType = "virtiofs";
+                  };
                   services.getty.autologinUser = "root";
 
                   # ---------- packages ----------
@@ -106,6 +117,7 @@
                     config.allowUnfree = true;
                     overlays = [ claude-code-nix.overlays.default ];
                   };
+                  networking.useDHCP = true;
                   environment.systemPackages = with pkgs; [
                     claude-code
                     git
@@ -125,7 +137,8 @@
                       user.name = "Andrew Plaza";
                       user.email = "github@andrewplaza.dev";
                       url."https://github.com/".insteadOf = "git@github.com:";
-                      credential."https://github.com".helper = "!f() { echo \"protocol=https\nhost=github.com\nusername=x-access-token\npassword=\$GH_TOKEN\"; }; f";
+                      credential."https://github.com".helper =
+                        "!f() { echo \"protocol=https\nhost=github.com\nusername=x-access-token\npassword=\$GH_TOKEN\"; }; f";
                     };
                   };
                   # ---------- nix flakes in guest ----------
@@ -151,7 +164,10 @@
                     dates = "hourly";
                     options = "--delete-older-than 1h";
                   };
-                  environment.variables.IS_SANDBOX = 1;
+                  environment.variables = {
+                    IS_SANDBOX = 1;
+                    CARGO_TARGET_DIR = "/tmp/cargo-target";
+                  };
                   # ---------- login shell launches claude ----------
                   programs.bash.interactiveShellInit = ''
                     [ "$(whoami)" = "root" ] || return
@@ -168,9 +184,10 @@
                       export GH_TOKEN=$(cat /mnt/claude-vm-config/gh-token)
                       export GITHUB_TOKEN="$GH_TOKEN"
                     fi
-
                     cd /workspace 2>/dev/null || true
                     claude "''${args[@]}"
+                    EXIT_CODE=$?
+                    echo "=== claude exited with code $EXIT_CODE ==="
                     systemctl poweroff -f
                   '';
 
@@ -189,6 +206,7 @@
         let
           vm = mkVM hostSystem;
           vmBuild = vm.nixosSystem.config.system.build.vm;
+          setupVirtio = vm.hostPkgs.callPackage ./virtio { };
         in
         {
           default = vm.hostPkgs.writeShellScriptBin "claude-vm" ''
@@ -214,7 +232,7 @@
 
             export CLAUDE_VM_CONFIG_DIR="$CONFIG_DIR"
             export WORKSPACE_DIR="$(pwd)"
-            exec ${vmBuild}/bin/run-claude-vm-vm
+            exec ${setupVirtio}/bin/setup-virtio ${vmBuild}/bin/run-claude-vm-vm
           '';
         }
       );
