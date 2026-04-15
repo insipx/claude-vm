@@ -100,15 +100,18 @@
                     loader.grub.enable = false;
                     initrd.availableKernelModules = [ "virtiofs" ];
                   };
-                  # Add guest-side mounts at the module level:
-                  fileSystems."/workspace" = {
+                  # virtiofs mounts — must go under virtualisation.fileSystems
+                  # because qemu-vm.nix overrides top-level fileSystems
+                  virtualisation.fileSystems."/workspace" = {
                     device = "workspace";
                     fsType = "virtiofs";
+                    neededForBoot = true;
                   };
 
-                  fileSystems."/mnt/claude-vm-config" = {
+                  virtualisation.fileSystems."/mnt/claude-vm-config" = {
                     device = "config";
                     fsType = "virtiofs";
+                    neededForBoot = true;
                   };
                   services.getty.autologinUser = "root";
 
