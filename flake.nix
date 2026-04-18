@@ -257,6 +257,9 @@
                       "nix-command"
                       "flakes"
                     ];
+                    sandbox = "relaxed";
+                    # Host is already an authenticated SSH builder; don't require signatures
+                    require-sigs = false;
                     substituters = [
                       "ssh-ng://builder@10.0.2.2"
                       "https://xmtp.cachix.org"
