@@ -14,11 +14,13 @@
       url = "github:oxalica/rust-overlay";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-
+    import-tree.url = "github:vic/import-tree";
+    flake-parts.url = "github:hercules-ci/flake-parts";
     jupiter-secrets = {
       url = "github:insipx/jupiter-secrets";
     };
   };
+
   outputs =
     inputs@{
       self,
