@@ -246,7 +246,7 @@
                       "flakes"
                     ];
                     substituters = [
-                      "ssh://builder@10.0.2.2"
+                      "ssh-ng://builder@10.0.2.2"
                       "https://xmtp.cachix.org"
                       "https://nix-community.cachix.org"
                     ];
