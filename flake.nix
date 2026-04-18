@@ -139,8 +139,9 @@
                     ];
                   };
 
-                  # Overlay: reads fall through to host ~/.claude, writes land in tmpfs
-                  virtualisation.fileSystems."/root/.claude" = {
+                  # Overlay at the host's home path so absolute paths in settings
+                  # (e.g. known_marketplaces.json installLocation) match.
+                  virtualisation.fileSystems."/home/insipx/.claude" = {
                     device = "overlay";
                     fsType = "overlay";
                     depends = [
@@ -154,10 +155,10 @@
                     ];
                   };
 
-                  # Create upper/work dirs before the overlay mount activates
                   systemd.tmpfiles.rules = [
                     "d /run/claude-home-rw/upper 0755 root root -"
                     "d /run/claude-home-rw/work 0755 root root -"
+                    "d /home/insipx 0755 root root -"
                   ];
 
                   services.getty.autologinUser = "root";
@@ -282,6 +283,8 @@
                       export GH_TOKEN=$(cat /mnt/claude-vm-config/gh-token)
                       export GITHUB_TOKEN="$GH_TOKEN"
                     fi
+                    # Match host's home path so absolute paths in ~/.claude configs resolve
+                    export HOME=/home/insipx
                     cd /workspace 2>/dev/null || true
                     claude "''${args[@]}"
                     EXIT_CODE=$?
