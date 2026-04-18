@@ -33,6 +33,41 @@ All flags after `--` are forwarded to claude-code inside the VM.
 Press `Ctrl-A X` to quit QEMU. When Claude exits normally, the VM shuts down
 automatically. Run with `-c` to continue the last conversation.
 
+## Remote builders (host delegation)
+
+The VM can delegate nix builds to the host machine, which then fans out to any
+remote builders the host has configured (e.g. macOS builders). This uses an
+ephemeral SSH keypair generated per VM session — no persistent secrets needed.
+
+### Host prerequisites
+
+Your host NixOS configuration needs a locked-down `builder` user:
+
+```nix
+users.users.builder = {
+  isNormalUser = true;
+  home = "/var/lib/builder";
+  shell = pkgs.writeShellScript "nix-builder-shell" ''
+    case "$SSH_ORIGINAL_COMMAND" in
+      "nix-daemon --stdio") exec nix-daemon --stdio ;;
+      "nix-store --serve --write") exec nix-store --serve --write ;;
+      "nix-store --serve") exec nix-store --serve ;;
+      *) echo "Only nix build commands allowed" >&2; exit 1 ;;
+    esac
+  '';
+  openssh.authorizedKeys.keys = [ ]; # managed dynamically by the VM launcher
+};
+
+nix.settings.trusted-users = [ "builder" ];
+```
+
+The host must also have `sshd` running and reachable from the VM's virtual
+network (QEMU routes `10.0.2.2` to the host).
+
+The VM launcher script handles everything else automatically: generating the
+ephemeral keypair, installing it in the builder's `authorized_keys` with
+restrictions, and cleaning up on exit.
+
 ## Non-native users (e.g. darwin)
 
 Make sure you have an external builder set up, or use

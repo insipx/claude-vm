@@ -144,6 +144,52 @@
                         "!f() { echo \"protocol=https\nhost=github.com\nusername=x-access-token\npassword=\$GH_TOKEN\"; }; f";
                     };
                   };
+                  # ---------- remote builder (host delegation) ----------
+                  system.activationScripts.builder-ssh = ''
+                                        if [ -f /mnt/claude-vm-config/builder-ssh-key ]; then
+                                          mkdir -p /root/.ssh
+                                          cp /mnt/claude-vm-config/builder-ssh-key /root/.ssh/builder_key
+                                          chmod 600 /root/.ssh/builder_key
+
+                                          # Trust the host's SSH key
+                                          if [ -f /mnt/claude-vm-config/host-ssh-pubkey ]; then
+                                            HOSTKEY=$(cat /mnt/claude-vm-config/host-ssh-pubkey)
+                                            echo "10.0.2.2 $HOSTKEY" > /root/.ssh/known_hosts
+                                            chmod 644 /root/.ssh/known_hosts
+                                          fi
+
+                                          # SSH config so substituter and buildMachines can find the key
+                                          cat > /root/.ssh/config <<'SSHEOF'
+                    Host 10.0.2.2
+                      User builder
+                      IdentityFile /root/.ssh/builder_key
+                      IdentitiesOnly yes
+                    SSHEOF
+                                          chmod 600 /root/.ssh/config
+                                        fi
+                  '';
+                  nix.buildMachines = [
+                    {
+                      hostName = "10.0.2.2";
+                      sshUser = "builder";
+                      sshKey = "/root/.ssh/builder_key";
+                      systems = [
+                        "x86_64-linux"
+                        "aarch64-linux"
+                        "x86_64-darwin"
+                        "aarch64-darwin"
+                      ];
+                      maxJobs = 100;
+                      supportedFeatures = [
+                        "nixos-test"
+                        "big-parallel"
+                        "kvm"
+                      ];
+                      protocol = "ssh-ng";
+                    }
+                  ];
+                  nix.distributedBuilds = true;
+
                   # ---------- nix flakes in guest ----------
                   nix.settings = {
                     experimental-features = [
@@ -151,6 +197,7 @@
                       "flakes"
                     ];
                     substituters = [
+                      "ssh://builder@10.0.2.2"
                       "https://xmtp.cachix.org"
                       "https://nix-community.cachix.org"
                     ];
@@ -214,7 +261,6 @@
         {
           default = vm.hostPkgs.writeShellScriptBin "claude-vm" ''
             CONFIG_DIR=$(mktemp -d)
-            trap "rm -rf '$CONFIG_DIR'" EXIT
 
             # Write all CLI args to a file, one per line
             if [ $# -gt 0 ]; then
@@ -233,9 +279,39 @@
               chmod 600 "$CONFIG_DIR/gh-token"
             fi
 
+            # Remote builder setup (only if builder user exists on host)
+            if id builder &>/dev/null; then
+              ${vm.hostPkgs.openssh}/bin/ssh-keygen -t ed25519 -f "$CONFIG_DIR/builder-ssh-key" -N "" -C "claude-vm-ephemeral" -q
+
+              BUILDER_AUTH_KEYS="/var/lib/builder/.ssh/authorized_keys"
+              PUBKEY=$(cat "$CONFIG_DIR/builder-ssh-key.pub")
+              RESTRICTED_ENTRY="restrict,no-port-forwarding,no-X11-forwarding,no-agent-forwarding,no-pty $PUBKEY"
+
+              sudo mkdir -p /var/lib/builder/.ssh
+              sudo chmod 700 /var/lib/builder/.ssh
+              sudo chown builder:users /var/lib/builder/.ssh
+              echo "$RESTRICTED_ENTRY" | sudo tee -a "$BUILDER_AUTH_KEYS" > /dev/null
+              sudo chmod 600 "$BUILDER_AUTH_KEYS"
+              sudo chown builder:users "$BUILDER_AUTH_KEYS"
+
+              if [ -f /etc/ssh/ssh_host_ed25519_key.pub ]; then
+                cp /etc/ssh/ssh_host_ed25519_key.pub "$CONFIG_DIR/host-ssh-pubkey"
+              fi
+
+              cleanup() {
+                sudo ${vm.hostPkgs.gnused}/bin/sed -i '/claude-vm-ephemeral$/d' "$BUILDER_AUTH_KEYS" 2>/dev/null || true
+                rm -rf "$CONFIG_DIR"
+              }
+            else
+              cleanup() {
+                rm -rf "$CONFIG_DIR"
+              }
+            fi
+            trap cleanup EXIT
+
             export CLAUDE_VM_CONFIG_DIR="$CONFIG_DIR"
             export WORKSPACE_DIR="$(pwd)"
-            exec ${setupVirtio}/bin/setup-virtio ${vmBuild}/bin/run-claude-vm-vm
+            ${setupVirtio}/bin/setup-virtio ${vmBuild}/bin/run-claude-vm-vm
           '';
         }
       );
