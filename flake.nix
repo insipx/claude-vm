@@ -128,6 +128,7 @@
                     vim
                     jujutsu
                     gh
+                    nix-output-monitor
                   ];
                   programs.direnv = {
                     enable = true;
