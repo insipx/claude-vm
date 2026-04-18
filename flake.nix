@@ -90,6 +90,11 @@
                       ''socket,id=char-config,path="$VIRTIOFSD_SOCK_DIR"/config.sock''
                       "-device"
                       "vhost-user-fs-pci,chardev=char-config,tag=config"
+                      # host ~/.claude (read-only bind)
+                      "-chardev"
+                      ''socket,id=char-claude-home,path="$VIRTIOFSD_SOCK_DIR"/claude-home.sock''
+                      "-device"
+                      "vhost-user-fs-pci,chardev=char-claude-home,tag=claude-home"
                     ];
                   };
 
@@ -113,6 +118,25 @@
                     fsType = "virtiofs";
                     neededForBoot = true;
                   };
+
+                  # Host ~/.claude mounted read-only at /root/.claude
+                  virtualisation.fileSystems."/root/.claude" = {
+                    device = "claude-home";
+                    fsType = "virtiofs";
+                    options = [ "ro" ];
+                  };
+
+                  # Writable tmpfs for VM-local conversation history (overlays the ro mount)
+                  virtualisation.fileSystems."/root/.claude/projects" = {
+                    device = "tmpfs";
+                    fsType = "tmpfs";
+                    options = [
+                      "nosuid"
+                      "nodev"
+                      "mode=755"
+                    ];
+                  };
+
                   services.getty.autologinUser = "root";
 
                   # ---------- packages ----------
@@ -312,6 +336,8 @@
 
             export CLAUDE_VM_CONFIG_DIR="$CONFIG_DIR"
             export WORKSPACE_DIR="$(pwd)"
+            export CLAUDE_HOST_CONFIG_DIR="''${CLAUDE_HOST_CONFIG_DIR:-$HOME/.claude}"
+            mkdir -p "$CLAUDE_HOST_CONFIG_DIR"
             ${setupVirtio}/bin/setup-virtio ${vmBuild}/bin/run-claude-vm-vm
           '';
         }
