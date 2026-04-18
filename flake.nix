@@ -97,6 +97,11 @@
                       ''socket,id=char-claude-home,path="$VIRTIOFSD_SOCK_DIR"/claude-home.sock''
                       "-device"
                       "vhost-user-fs-pci,chardev=char-claude-home,tag=claude-home"
+                      # host ~/.claude/projects (writable, persists conversation history)
+                      "-chardev"
+                      ''socket,id=char-claude-projects,path="$VIRTIOFSD_SOCK_DIR"/claude-projects.sock''
+                      "-device"
+                      "vhost-user-fs-pci,chardev=char-claude-projects,tag=claude-projects"
                     ];
                   };
 
@@ -153,6 +158,13 @@
                       "upperdir=/run/claude-home-rw/upper"
                       "workdir=/run/claude-home-rw/work"
                     ];
+                  };
+
+                  # Persist conversation history directly to host (bypasses overlay)
+                  virtualisation.fileSystems."/home/insipx/.claude/projects" = {
+                    device = "claude-projects";
+                    fsType = "virtiofs";
+                    depends = [ "/home/insipx/.claude" ];
                   };
 
                   systemd.tmpfiles.rules = [
@@ -374,7 +386,8 @@
             export CLAUDE_VM_CONFIG_DIR="$CONFIG_DIR"
             export WORKSPACE_DIR="$(pwd)"
             export CLAUDE_HOST_CONFIG_DIR="''${CLAUDE_HOST_CONFIG_DIR:-$HOME/.claude}"
-            mkdir -p "$CLAUDE_HOST_CONFIG_DIR"
+            export CLAUDE_HOST_PROJECTS_DIR="''${CLAUDE_HOST_PROJECTS_DIR:-$CLAUDE_HOST_CONFIG_DIR/projects}"
+            mkdir -p "$CLAUDE_HOST_CONFIG_DIR" "$CLAUDE_HOST_PROJECTS_DIR"
             ${setupVirtio}/bin/setup-virtio ${vmBuild}/bin/run-claude-vm-vm
           '';
         }
