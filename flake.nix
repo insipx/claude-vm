@@ -285,6 +285,10 @@
                     fi
                     # Match host's home path so absolute paths in ~/.claude configs resolve
                     export HOME=/home/insipx
+                    if [ -f /mnt/claude-vm-config/claude.json ]; then
+                      cp /mnt/claude-vm-config/claude.json "$HOME/.claude.json"
+                      chmod 600 "$HOME/.claude.json"
+                    fi
                     cd /workspace 2>/dev/null || true
                     claude "''${args[@]}"
                     EXIT_CODE=$?
@@ -328,6 +332,12 @@
             if [ -n "$GH_TOKEN" ]; then
               printf '%s' "$GH_TOKEN" > "$CONFIG_DIR/gh-token"
               chmod 600 "$CONFIG_DIR/gh-token"
+            fi
+
+            # Copy host ~/.claude.json so the guest sees the same user config
+            if [ -f "$HOME/.claude.json" ]; then
+              cp "$HOME/.claude.json" "$CONFIG_DIR/claude.json"
+              chmod 600 "$CONFIG_DIR/claude.json"
             fi
 
             # Remote builder setup (only if builder user exists on host)
