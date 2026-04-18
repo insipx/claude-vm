@@ -121,15 +121,15 @@
                     neededForBoot = true;
                   };
 
-                  # Host ~/.claude mounted read-only at /root/.claude
-                  virtualisation.fileSystems."/root/.claude" = {
+                  # Host ~/.claude: read-only lower layer for overlayfs
+                  virtualisation.fileSystems."/mnt/claude-home-ro" = {
                     device = "claude-home";
                     fsType = "virtiofs";
                     options = [ "ro" ];
                   };
 
-                  # Writable tmpfs for VM-local conversation history (overlays the ro mount)
-                  virtualisation.fileSystems."/root/.claude/projects" = {
+                  # Tmpfs providing upper/work dirs for overlayfs
+                  virtualisation.fileSystems."/run/claude-home-rw" = {
                     device = "tmpfs";
                     fsType = "tmpfs";
                     options = [
@@ -138,6 +138,27 @@
                       "mode=755"
                     ];
                   };
+
+                  # Overlay: reads fall through to host ~/.claude, writes land in tmpfs
+                  virtualisation.fileSystems."/root/.claude" = {
+                    device = "overlay";
+                    fsType = "overlay";
+                    depends = [
+                      "/mnt/claude-home-ro"
+                      "/run/claude-home-rw"
+                    ];
+                    options = [
+                      "lowerdir=/mnt/claude-home-ro"
+                      "upperdir=/run/claude-home-rw/upper"
+                      "workdir=/run/claude-home-rw/work"
+                    ];
+                  };
+
+                  # Create upper/work dirs before the overlay mount activates
+                  systemd.tmpfiles.rules = [
+                    "d /run/claude-home-rw/upper 0755 root root -"
+                    "d /run/claude-home-rw/work 0755 root root -"
+                  ];
 
                   services.getty.autologinUser = "root";
 
