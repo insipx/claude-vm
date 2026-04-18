@@ -260,6 +260,20 @@
                     sandbox = "relaxed";
                     # Host is already an authenticated SSH builder; don't require signatures
                     require-sigs = false;
+                    # Darwin derivations reference /bin/sh and other host paths via __impureHostDeps
+                    extra-sandbox-paths = [
+                      "/bin/sh"
+                      "/usr/lib/libSystem.B.dylib"
+                      "/usr/lib/libc++.1.dylib"
+                      "/usr/lib/libc++abi.dylib"
+                      "/usr/lib/libobjc.A.dylib"
+                      "/usr/lib/system"
+                      "/System/Library/Frameworks"
+                      "/System/Library/PrivateFrameworks"
+                      "/private/tmp"
+                      "/private/var/tmp"
+                      "/usr/bin/env"
+                    ];
                     substituters = [
                       "ssh-ng://builder@10.0.2.2"
                       "https://xmtp.cachix.org"
