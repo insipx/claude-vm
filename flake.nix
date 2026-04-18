@@ -262,10 +262,10 @@
                       "https://xmtp.cachix.org"
                       "https://nix-community.cachix.org"
                     ];
+                    trusted-substituters = [ "ssh-ng://builder@10.0.2.2" ];
                     trusted-public-keys = [
                       "xmtp.cachix.org-1:nFPFrqLQ9kjYQKiWL7gKq6llcNEeaV4iI+Ka1F+Tmq0="
                       "nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs="
-                      "ssh-ng://builder@10.0.2.2"
                     ];
                     # Auto-GC when free disk drops below 1GB, free up to 5GB
                     min-free = "${toString (1024 * 1024 * 1024)}";
